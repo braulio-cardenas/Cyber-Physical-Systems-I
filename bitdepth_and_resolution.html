@@ -93,7 +93,7 @@
         <h2>1) Image</h2>
         <div class="filebox">
           <input id="file" type="file" accept="image/*" />
-          <button id="loadSample" title="Load a built‑in sample" class="ghost">Load sample</button>
+          <button id="loadSample" title="Load a built-in sample" class="ghost">Load sample</button>
         </div>
         <p class="hint">Tip: very large images are handled fine; preview is scaled to fit. Processing always uses the full resolution internally.</p>
       </div>
@@ -116,6 +116,7 @@
 
         <div class="row">
           <label for="res">Resolution (% of original)</label>
+          <!-- Changed min from 5 to 1 -->
           <input id="res" type="range" min="1" max="100" step="1" value="100" />
           <div id="resVal">100%</div>
         </div>
@@ -123,7 +124,7 @@
         <div class="row">
           <label for="bits">Bit depth (per channel)</label>
           <input id="bits" type="range" min="1" max="8" step="1" value="8" />
-          <div id="bitsVal">8‑bit</div>
+          <div id="bitsVal">8-bit</div>
         </div>
 
         <div class="btns">
@@ -147,7 +148,7 @@
           <div class="dim" id="procDim">–</div>
         </div>
         <canvas id="proc"></canvas>
-        <div class="hint">Nearest‑neighbor upscaling is used to make reduced resolution visible (pixelation). Bit‑depth reduction quantizes values to <span id="levelsLabel">256</span> levels.</div>
+        <div class="hint">Nearest-neighbor upscaling is used to make reduced resolution visible (pixelation). Bit-depth reduction quantizes values to <span id="levelsLabel">256</span> levels.</div>
       </div>
     </div>
   </div>
@@ -181,16 +182,12 @@
     };
 
     function setCanvasesToImage(img) {
-      // Set actual canvas pixel size to image size; CSS will scale to fit container
       const w = img.naturalWidth || img.width;
       const h = img.naturalHeight || img.height;
       origCanvas.width = w; origCanvas.height = h;
       procCanvas.width = w; procCanvas.height = h;
-
-      // Draw original
       octx.clearRect(0,0,w,h);
       octx.drawImage(img, 0, 0, w, h);
-
       origDim.textContent = `${w} × ${h}px`;
       procDim.textContent = `${w} × ${h}px`;
     }
@@ -198,8 +195,7 @@
     function clamp(v, min, max) { return v < min ? min : (v > max ? max : v); }
 
     function quantizeChannel(value, bits) {
-      // Map [0,255] to levels, then back to [0,255]
-      const levels = 1 << bits; // 2^bits
+      const levels = 1 << bits;
       if (levels <= 1) return 0;
       const q = Math.round((value / 255) * (levels - 1));
       return Math.round((q * 255) / (levels - 1));
@@ -208,36 +204,29 @@
     function render() {
       if (!origCanvas.width || !origCanvas.height) return;
       const w = origCanvas.width, h = origCanvas.height;
-
-      // Read UI
-      const scalePct = parseInt(res.value, 10); // 5..100
-      const b = parseInt(bits.value, 10); // 1..8
+      const scalePct = parseInt(res.value, 10);
+      const b = parseInt(bits.value, 10);
       const colorMode = modeGray.checked ? 'gray' : 'color';
 
       resVal.textContent = `${scalePct}%`;
       bitsVal.textContent = `${b}\u2011bit`;
-      const levels = 1 << b; // 2^b
+      const levels = 1 << b;
       levelsLabel.textContent = levels.toString();
 
-      // Step 1: build a small (downscaled) working canvas
       const workW = Math.max(1, Math.round(w * scalePct / 100));
       const workH = Math.max(1, Math.round(h * scalePct / 100));
       const work = document.createElement('canvas');
       work.width = workW; work.height = workH;
       const wctx = work.getContext('2d');
-      // High quality downscale for the working buffer
       wctx.imageSmoothingEnabled = true;
       wctx.imageSmoothingQuality = 'high';
       wctx.drawImage(origCanvas, 0, 0, w, h, 0, 0, workW, workH);
 
-      // Step 2: pixel processing (grayscale + bit-depth quantization)
       let imgData = wctx.getImageData(0, 0, workW, workH);
-      let data = imgData.data; // RGBA
-
+      let data = imgData.data;
       for (let i = 0; i < data.length; i += 4) {
         let r = data[i], g = data[i+1], bch = data[i+2];
         if (colorMode === 'gray') {
-          // ITU-R BT.601 luma
           const y = 0.299 * r + 0.587 * g + 0.114 * bch;
           const q = quantizeChannel(y, b);
           data[i] = data[i+1] = data[i+2] = q;
@@ -246,19 +235,14 @@
           data[i+1] = quantizeChannel(g, b);
           data[i+2] = quantizeChannel(bch, b);
         }
-        // preserve alpha
       }
-
       wctx.putImageData(imgData, 0, 0);
 
-      // Step 3: draw to processed canvas using nearest-neighbor (no smoothing) so pixelation is visible
       pctx.save();
       pctx.clearRect(0, 0, w, h);
       pctx.imageSmoothingEnabled = false;
       pctx.drawImage(work, 0, 0, workW, workH, 0, 0, w, h);
       pctx.restore();
-
-      // Update dims (processed is always same canvas size as original; effective levels shown above)
       procDim.textContent = `${w} × ${h}px (source @ ${workW}×${workH})`;
     }
 
@@ -267,7 +251,6 @@
       render();
     }
 
-    // Event wiring
     [res, bits, modeColor, modeGray].forEach(el => el.addEventListener('input', render));
     resetBtn.addEventListener('click', resetUI);
 
@@ -287,9 +270,7 @@
       reader.readAsDataURL(file);
     });
 
-    // Built-in sample (royalty-free gradient demo image encoded as data URL)
     loadSampleBtn.addEventListener('click', () => {
-      // A compact SVG data URL that renders a colorful photo-like gradient grid.
       const svg = encodeURIComponent(`
         <svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800'>
           <defs>
@@ -313,7 +294,6 @@
       originalImage.src = `data:image/svg+xml;charset=utf-8,${svg}`;
     });
 
-    // Initialize with a tiny transparent base so canvases exist
     (function initBlank() {
       const blank = document.createElement('canvas');
       blank.width = 640; blank.height = 400;
