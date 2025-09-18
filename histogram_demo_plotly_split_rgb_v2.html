@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Grayscale + Bit Depth + Histograms (Plotly, split RGB, bin-index x-axis)</title>
+  <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+  <style>
+    :root {
+      --bg:#0b0f14; --panel:#111821; --panel-2:#0d131b;
+      --text:#e6eef6; --muted:#9fb3c8; --accent:#4aa8ff; --accent-2:#8ad5ff;
+      --border:#203040;
+    }
+    body{margin:0;background:var(--bg);color:var(--text);
+      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto;}
+    header{padding:16px 20px;border-bottom:1px solid var(--border);
+      background:linear-gradient(180deg,rgba(255,255,255,0.02),transparent);}
+    header h1{margin:0 0 4px;font-size:20px;}
+    header p{margin:0;color:var(--muted);font-size:13px;}
+    .wrap{max-width:1100px;margin:18px auto;padding:0 16px 24px;}
+    .panel{background:linear-gradient(180deg,var(--panel),var(--panel-2));
+      border:1px solid var(--border);border-radius:14px;padding:14px;}
+    .group{background:rgba(255,255,255,0.03);border:1px solid var(--border);
+      border-radius:12px;padding:12px;margin-bottom:12px;}
+    .group h2{font-size:14px;margin:0 0 10px;color:var(--accent-2);}
+    .row{display:grid;grid-template-columns:160px 1fr auto;gap:8px;
+      align-items:center;padding:6px 0;}
+    .row + .row{border-top:1px dashed var(--border);}
+    .seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+    .seg input{display:none;}
+    .seg label{padding:8px 12px;cursor:pointer;color:var(--text);font-size:13px;min-width:98px;text-align:center;}
+    .seg input:checked + label{background:var(--accent);color:#02131f;font-weight:700;}
+    .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+    button{appearance:none;border:1px solid var(--border);background:rgba(255,255,255,0.04);
+      color:var(--text);padding:10px 14px;font-size:14px;border-radius:10px;cursor:pointer;}
+    button:hover{background:rgba(255,255,255,0.08);border-color:#355372;}
+    .primary{background:linear-gradient(180deg,var(--accent),#3e7fe0);color:#05121d;border-color:transparent;font-weight:800;}
+    .canvases{display:grid;grid-template-columns:1fr;gap:12px;}
+    @media (min-width:860px){.canvases{grid-template-columns:1fr 1fr;}}
+    .canvas-card{background:rgba(255,255,255,0.03);border:1px dashed var(--border);
+      border-radius:12px;padding:12px;}
+    .canvas-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px;}
+    .canvas-head h3{margin:0;font-size:14px;color:var(--accent-2);letter-spacing:0.3px;}
+    .dim{font-size:12px;color:var(--muted);}
+    canvas{width:100%;height:auto;border-radius:10px;background:#0a0e13;}
+    #histGray,#histR,#histG,#histB{width:100%;height:280px;}
+    .hist-grid{display:grid;grid-template-columns:1fr;gap:12px;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Grayscale · Bit Depth · Histograms</h1>
+    <p>Upload an image, toggle grayscale, change bit depth, and view clean, vector histograms via Plotly. X-axis shows bin indices (0..2^b−1).</p>
+  </header>
+
+  <div class="wrap">
+    <div class="panel">
+      <div class="group">
+        <h2>1) Image</h2>
+        <div class="filebox">
+          <input id="file" type="file" accept="image/*" />
+          <button id="loadSample" class="ghost">Load sample</button>
+        </div>
+        <p class="hint" style="color:var(--muted);font-size:12px;margin-top:8px;">
+          Tip: very large images are OK; the preview scales to fit.
+        </p>
+      </div>
+
+      <div class="group">
+        <h2>2) Adjustments</h2>
+        <div class="row">
+          <label>Color mode</label>
+          <div>
+            <div class="seg" role="tablist" aria-label="Color mode">
+              <input type="radio" id="modeColor" name="mode" value="color" checked />
+              <label for="modeColor">Color</label>
+              <input type="radio" id="modeGray" name="mode" value="gray" />
+              <label for="modeGray">Grayscale</label>
+            </div>
+          </div>
+          <div></div>
+        </div>
+
+        <div class="row">
+          <label for="bits">Bit depth (per channel)</label>
+          <input id="bits" type="range" min="1" max="8" step="1" value="8" />
+          <div id="bitsVal">8‑bit</div>
+        </div>
+
+        <div class="btns">
+          <button id="reset">Reset</button>
+          <button id="download" class="primary">Download processed PNG</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="canvases">
+      <div class="canvas-card">
+        <div class="canvas-head">
+          <h3>Original</h3><div class="dim" id="origDim">–</div>
+        </div>
+        <canvas id="orig"></canvas>
+      </div>
+
+      <div class="canvas-card">
+        <div class="canvas-head">
+          <h3>Processed</h3><div class="dim" id="procDim">–</div>
+        </div>
+        <canvas id="proc"></canvas>
+      </div>
+    </div>
+
+    <div class="canvas-card">
+      <div class="canvas-head"><h3>Histogram(s)</h3></div>
+      <div id="histGray" style="display:none;"></div>
+      <div id="rgbHists" class="hist-grid" style="display:grid;">
+        <div id="histR"></div>
+        <div id="histG"></div>
+        <div id="histB"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const fileInput = document.getElementById('file');
+  const loadSampleBtn = document.getElementById('loadSample');
+  const bits = document.getElementById('bits');
+  const bitsVal = document.getElementById('bitsVal');
+  const modeColor = document.getElementById('modeColor');
+  const modeGray = document.getElementById('modeGray');
+  const resetBtn = document.getElementById('reset');
+  const downloadBtn = document.getElementById('download');
+
+  const origCanvas = document.getElementById('orig');
+  const procCanvas = document.getElementById('proc');
+  const octx = origCanvas.getContext('2d');
+  const pctx = procCanvas.getContext('2d');
+
+  const origDim = document.getElementById('origDim');
+  const procDim = document.getElementById('procDim');
+
+  const histGrayDiv = document.getElementById('histGray');
+  const rgbHistsDiv = document.getElementById('rgbHists');
+  const histRDiv = document.getElementById('histR');
+  const histGDiv = document.getElementById('histG');
+  const histBDiv = document.getElementById('histB');
+
+  let originalImage = new Image();
+  originalImage.onload = () => {
+    const w = originalImage.naturalWidth || originalImage.width;
+    const h = originalImage.naturalHeight || originalImage.height;
+    origCanvas.width = w; origCanvas.height = h;
+    procCanvas.width = w; procCanvas.height = h;
+    octx.clearRect(0,0,w,h);
+    octx.drawImage(originalImage,0,0,w,h);
+    origDim.textContent = `${w} × ${h}px`;
+    render();
+  };
+
+  function quantizeChannel(value, bits) {
+    const levels = 1 << bits;
+    if (levels <= 1) return 0;
+    const q = Math.round((value / 255) * (levels - 1));
+    return Math.round((q * 255) / (levels - 1));
+  }
+
+  function tickSpec(bits){
+    const levels = 1 << bits;
+    const xIdx = Array.from({length: levels}, (_, i) => i); // 0..levels-1
+    if(levels <= 16){
+      return {tickvals: xIdx, ticktext: xIdx.map(String), range:[-0.5, levels-0.5]};
+    } else {
+      // aim for ~8 labels
+      const step = Math.ceil(levels / 8);
+      const reduced = xIdx.filter((_,i)=> i % step === 0);
+      const last = xIdx[xIdx.length-1];
+      if(reduced[reduced.length-1] !== last) reduced.push(last);
+      return {tickvals: reduced, ticktext: reduced.map(String), range:[-0.5, levels-0.5]};
+    }
+  }
+
+  function layoutBase(title, bits){
+    const {tickvals, ticktext, range} = tickSpec(bits);
+    return {
+      title: {text: title, font:{size:12, color:'#e6eef6'}},
+      paper_bgcolor: 'rgba(0,0,0,0)',
+      plot_bgcolor: 'rgba(0,0,0,0)',
+      margin: {l: 50, r: 10, t: 24, b: 40},
+      xaxis: {
+        title: 'Bin index (0 … 2^b − 1)',
+        range,
+        tickmode: 'array',
+        tickvals, ticktext,
+        gridcolor:'#2a3948',
+        color:'#e6eef6', titlefont:{color:'#e6eef6'}
+      },
+      yaxis: {title:'Count', gridcolor:'#2a3948', color:'#e6eef6', titlefont:{color:'#e6eef6'}},
+      showlegend: false,
+    };
+  }
+
+  function renderGray(histGray, bitsValNum){
+    histGrayDiv.style.display = 'block';
+    rgbHistsDiv.style.display = 'none';
+    const levels = 1 << bitsValNum;
+    const xIdx = Array.from({length: levels}, (_, i) => i);
+    const trace = {x:xIdx, y:histGray, type:'bar', marker:{color:'#e6eef6'}};
+    Plotly.react(histGrayDiv, [trace], layoutBase('Grayscale Histogram', bitsValNum), {responsive:true, displaylogo:false});
+  }
+
+  function renderRGB(histR, histG, histB, bitsValNum){
+    histGrayDiv.style.display = 'none';
+    rgbHistsDiv.style.display = 'grid';
+    const levels = 1 << bitsValNum;
+    const xIdx = Array.from({length: levels}, (_, i) => i);
+
+    Plotly.react(histRDiv, [{x:xIdx, y:histR, type:'bar', marker:{color:'#ff4d4d'}}],
+                layoutBase('Red Histogram', bitsValNum), {responsive:true, displaylogo:false});
+    Plotly.react(histGDiv, [{x:xIdx, y:histG, type:'bar', marker:{color:'#2ecc71'}}],
+                layoutBase('Green Histogram', bitsValNum), {responsive:true, displaylogo:false});
+    Plotly.react(histBDiv, [{x:xIdx, y:histB, type:'bar', marker:{color:'#3498db'}}],
+                layoutBase('Blue Histogram', bitsValNum), {responsive:true, displaylogo:false});
+  }
+
+  function render() {
+    if (!origCanvas.width || !origCanvas.height) return;
+    const w = origCanvas.width, h = origCanvas.height;
+    const b = parseInt(bits.value, 10);
+    const isGray = modeGray.checked;
+
+    bitsVal.textContent = `${b}\u2011bit`;
+
+    const imgData = octx.getImageData(0, 0, w, h);
+    const data = imgData.data;
+
+    const levels = 1 << b;
+    let histR = new Array(levels).fill(0);
+    let histG = new Array(levels).fill(0);
+    let histB = new Array(levels).fill(0);
+    let histGray = new Array(levels).fill(0);
+
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i], g = data[i+1], bl = data[i+2];
+      if (isGray) {
+        const y = 0.299*r + 0.587*g + 0.114*bl;
+        const q = quantizeChannel(y, b);
+        data[i] = data[i+1] = data[i+2] = q;
+        const idx = Math.round((q/255) * (levels-1));
+        histGray[idx]++;
+      } else {
+        const rq = quantizeChannel(r, b);
+        const gq = quantizeChannel(g, b);
+        const bq = quantizeChannel(bl, b);
+        data[i] = rq; data[i+1] = gq; data[i+2] = bq;
+        histR[Math.round((rq/255)*(levels-1))]++;
+        histG[Math.round((gq/255)*(levels-1))]++;
+        histB[Math.round((bq/255)*(levels-1))]++;
+      }
+    }
+
+    // write processed image
+    pctx.putImageData(imgData, 0, 0);
+    procDim.textContent = `${w} × ${h}px`;
+
+    // render histograms
+    if (isGray) {
+      renderGray(histGray, b);
+    } else {
+      renderRGB(histR, histG, histB, b);
+    }
+  }
+
+  // Events
+  [bits, modeColor, modeGray].forEach(el => el.addEventListener('input', render));
+  resetBtn.addEventListener('click', () => {
+    bits.value = 8; modeColor.checked = true; modeGray.checked = false;
+    render();
+  });
+  downloadBtn.addEventListener('click', () => {
+    if (!procCanvas.width) return;
+    const a = document.createElement('a');
+    a.download = 'processed.png';
+    a.href = procCanvas.toDataURL('image/png');
+    a.click();
+  });
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => { originalImage.src = ev.target.result; };
+    reader.readAsDataURL(file);
+  });
+  loadSampleBtn.addEventListener('click', () => {
+    const svg = encodeURIComponent(`
+      <svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800'>
+        <defs>
+          <linearGradient id='g1' x1='0' y1='0' x2='1' y2='1'>
+            <stop offset='0%' stop-color='#ff6b6b'/>
+            <stop offset='50%' stop-color='#ffd93d'/>
+            <stop offset='100%' stop-color='#6bcBff'/>
+          </linearGradient>
+          <linearGradient id='g2' x1='1' y1='0' x2='0' y2='1'>
+            <stop offset='0%' stop-color='#9b5de5'/>
+            <stop offset='50%' stop-color='#00f5d4'/>
+            <stop offset='100%' stop-color='#fee440'/>
+          </linearGradient>
+          <pattern id='p' width='200' height='200' patternUnits='userSpaceOnUse'>
+            <rect width='200' height='200' fill='url(#g1)'/>
+            <circle cx='100' cy='100' r='70' fill='url(#g2)' opacity='0.8'/>
+          </pattern>
+        </defs>
+        <rect width='1200' height='800' fill='url(#p)'/>
+      </svg>`);
+    originalImage.src = `data:image/svg+xml;charset=utf-8,${svg}`;
+  });
+
+  // Initialize with a blank gradient so canvases exist
+  (function initBlank(){
+    const blank = document.createElement('canvas');
+    blank.width = 640; blank.height = 400;
+    const ctx = blank.getContext('2d');
+    const grd = ctx.createLinearGradient(0,0,640,0);
+    grd.addColorStop(0,'#1a2a3a'); grd.addColorStop(1,'#0e1720');
+    ctx.fillStyle = grd; ctx.fillRect(0,0,640,400);
+    originalImage.src = blank.toDataURL('image/png');
+  })();
+</script>
+</body>
+</html>
