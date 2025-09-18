@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Image Color/Grayscale + Resolution & Bit-Depth Playground</title>
+  <style>
+    :root {
+      --bg: #0b0f14;
+      --panel: #111821;
+      --panel-2: #0d131b;
+      --text: #e6eef6;
+      --muted: #9fb3c8;
+      --accent: #4aa8ff;
+      --accent-2: #8ad5ff;
+      --border: #203040;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji", "Segoe UI Emoji";
+      line-height: 1.4;
+    }
+    header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0)); }
+    header h1 { margin: 0 0 4px; font-size: 20px; letter-spacing: 0.3px; }
+    header p { margin: 0; color: var(--muted); font-size: 13px; }
+
+    .wrap { max-width: 1100px; margin: 18px auto; padding: 0 16px 24px; }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--border);
+      border-radius: 14px; padding: 14px; box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+    }
+
+    .controls { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 860px) { .controls { grid-template-columns: 340px 1fr; } }
+
+    .group { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+    .group h2 { font-size: 14px; font-weight: 700; margin: 0 0 10px; letter-spacing: 0.4px; color: var(--accent-2); }
+
+    .row { display: grid; grid-template-columns: 160px 1fr auto; gap: 8px; align-items: center; padding: 6px 0; }
+    .row + .row { border-top: 1px dashed var(--border); }
+
+    label { color: var(--muted); font-size: 13px; }
+    input[type="range"] { width: 100%; }
+
+    .seg {
+      display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: rgba(255,255,255,0.03);
+    }
+    .seg input { display: none; }
+    .seg label {
+      padding: 8px 12px; cursor: pointer; color: var(--text); user-select: none; font-size: 13px; min-width: 98px; text-align: center;
+    }
+    .seg input:checked + label { background: var(--accent); color: #02131f; font-weight: 700; }
+
+    .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    button, .ghost {
+      appearance: none; border: 1px solid var(--border); background: rgba(255,255,255,0.04); color: var(--text);
+      padding: 10px 14px; font-size: 14px; border-radius: 10px; cursor: pointer; transition: transform .05s ease, background .2s ease, border-color .2s ease;
+    }
+    button:hover, .ghost:hover { background: rgba(255,255,255,0.08); border-color: #355372; }
+    button:active { transform: translateY(1px); }
+    .primary { background: linear-gradient(180deg, var(--accent), #3e7fe0); color: #05121d; border-color: transparent; font-weight: 800; }
+    .primary:hover { filter: brightness(1.02); }
+
+    .canvases { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 860px) { .canvases { grid-template-columns: 1fr 1fr; } }
+
+    .canvas-card { background: rgba(255,255,255,0.03); border: 1px dashed var(--border); border-radius: 12px; padding: 12px; }
+    .canvas-head { display:flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+    .canvas-head h3 { margin:0; font-size: 14px; color: var(--accent-2); letter-spacing: 0.3px; }
+    .dim { font-size: 12px; color: var(--muted); }
+    canvas { width: 100%; height: auto; border-radius: 10px; background: #0a0e13; image-rendering: pixelated; }
+
+    .hint { color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .filebox { display:flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .filebox input[type=file] { padding: 8px; background: rgba(255,255,255,0.02); border: 1px dashed var(--border); border-radius: 10px; }
+
+    a.link { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Color ↔ Grayscale · Resolution · Bit Depth</h1>
+    <p>Upload an image, then tweak color mode, simulated resolution (downscale/nearest-neighbor upscale), and bit depth. Everything runs locally in your browser.</p>
+  </header>
+
+  <div class="wrap">
+    <div class="controls panel">
+      <div class="group">
+        <h2>1) Image</h2>
+        <div class="filebox">
+          <input id="file" type="file" accept="image/*" />
+          <button id="loadSample" title="Load a built‑in sample" class="ghost">Load sample</button>
+        </div>
+        <p class="hint">Tip: very large images are handled fine; preview is scaled to fit. Processing always uses the full resolution internally.</p>
+      </div>
+
+      <div class="group">
+        <h2>2) Adjustments</h2>
+
+        <div class="row">
+          <label>Color mode</label>
+          <div>
+            <div class="seg" role="tablist" aria-label="Color mode">
+              <input type="radio" id="modeColor" name="mode" value="color" checked />
+              <label for="modeColor">Color</label>
+              <input type="radio" id="modeGray" name="mode" value="gray" />
+              <label for="modeGray">Grayscale</label>
+            </div>
+          </div>
+          <div></div>
+        </div>
+
+        <div class="row">
+          <label for="res">Resolution (% of original)</label>
+          <input id="res" type="range" min="5" max="100" step="1" value="100" />
+          <div id="resVal">100%</div>
+        </div>
+
+        <div class="row">
+          <label for="bits">Bit depth (per channel)</label>
+          <input id="bits" type="range" min="1" max="8" step="1" value="8" />
+          <div id="bitsVal">8‑bit</div>
+        </div>
+
+        <div class="btns">
+          <button id="reset">Reset</button>
+          <button id="download" class="primary">Download PNG</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="canvases">
+      <div class="canvas-card">
+        <div class="canvas-head">
+          <h3>Original</h3>
+          <div class="dim" id="origDim">–</div>
+        </div>
+        <canvas id="orig"></canvas>
+      </div>
+      <div class="canvas-card">
+        <div class="canvas-head">
+          <h3>Processed</h3>
+          <div class="dim" id="procDim">–</div>
+        </div>
+        <canvas id="proc"></canvas>
+        <div class="hint">Nearest‑neighbor upscaling is used to make reduced resolution visible (pixelation). Bit‑depth reduction quantizes values to <span id="levelsLabel">256</span> levels.</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('file');
+    const loadSampleBtn = document.getElementById('loadSample');
+    const res = document.getElementById('res');
+    const resVal = document.getElementById('resVal');
+    const bits = document.getElementById('bits');
+    const bitsVal = document.getElementById('bitsVal');
+    const levelsLabel = document.getElementById('levelsLabel');
+    const modeColor = document.getElementById('modeColor');
+    const modeGray = document.getElementById('modeGray');
+
+    const origCanvas = document.getElementById('orig');
+    const procCanvas = document.getElementById('proc');
+    const octx = origCanvas.getContext('2d');
+    const pctx = procCanvas.getContext('2d');
+
+    const origDim = document.getElementById('origDim');
+    const procDim = document.getElementById('procDim');
+
+    const resetBtn = document.getElementById('reset');
+    const downloadBtn = document.getElementById('download');
+
+    let originalImage = new Image();
+    originalImage.onload = () => {
+      setCanvasesToImage(originalImage);
+      render();
+    };
+
+    function setCanvasesToImage(img) {
+      // Set actual canvas pixel size to image size; CSS will scale to fit container
+      const w = img.naturalWidth || img.width;
+      const h = img.naturalHeight || img.height;
+      origCanvas.width = w; origCanvas.height = h;
+      procCanvas.width = w; procCanvas.height = h;
+
+      // Draw original
+      octx.clearRect(0,0,w,h);
+      octx.drawImage(img, 0, 0, w, h);
+
+      origDim.textContent = `${w} × ${h}px`;
+      procDim.textContent = `${w} × ${h}px`;
+    }
+
+    function clamp(v, min, max) { return v < min ? min : (v > max ? max : v); }
+
+    function quantizeChannel(value, bits) {
+      // Map [0,255] to levels, then back to [0,255]
+      const levels = 1 << bits; // 2^bits
+      if (levels <= 1) return 0;
+      const q = Math.round((value / 255) * (levels - 1));
+      return Math.round((q * 255) / (levels - 1));
+    }
+
+    function render() {
+      if (!origCanvas.width || !origCanvas.height) return;
+      const w = origCanvas.width, h = origCanvas.height;
+
+      // Read UI
+      const scalePct = parseInt(res.value, 10); // 5..100
+      const b = parseInt(bits.value, 10); // 1..8
+      const colorMode = modeGray.checked ? 'gray' : 'color';
+
+      resVal.textContent = `${scalePct}%`;
+      bitsVal.textContent = `${b}\u2011bit`;
+      const levels = 1 << b; // 2^b
+      levelsLabel.textContent = levels.toString();
+
+      // Step 1: build a small (downscaled) working canvas
+      const workW = Math.max(1, Math.round(w * scalePct / 100));
+      const workH = Math.max(1, Math.round(h * scalePct / 100));
+      const work = document.createElement('canvas');
+      work.width = workW; work.height = workH;
+      const wctx = work.getContext('2d');
+      // High quality downscale for the working buffer
+      wctx.imageSmoothingEnabled = true;
+      wctx.imageSmoothingQuality = 'high';
+      wctx.drawImage(origCanvas, 0, 0, w, h, 0, 0, workW, workH);
+
+      // Step 2: pixel processing (grayscale + bit-depth quantization)
+      let imgData = wctx.getImageData(0, 0, workW, workH);
+      let data = imgData.data; // RGBA
+
+      for (let i = 0; i < data.length; i += 4) {
+        let r = data[i], g = data[i+1], bch = data[i+2];
+        if (colorMode === 'gray') {
+          // ITU-R BT.601 luma
+          const y = 0.299 * r + 0.587 * g + 0.114 * bch;
+          const q = quantizeChannel(y, b);
+          data[i] = data[i+1] = data[i+2] = q;
+        } else {
+          data[i]   = quantizeChannel(r, b);
+          data[i+1] = quantizeChannel(g, b);
+          data[i+2] = quantizeChannel(bch, b);
+        }
+        // preserve alpha
+      }
+
+      wctx.putImageData(imgData, 0, 0);
+
+      // Step 3: draw to processed canvas using nearest-neighbor (no smoothing) so pixelation is visible
+      pctx.save();
+      pctx.clearRect(0, 0, w, h);
+      pctx.imageSmoothingEnabled = false;
+      pctx.drawImage(work, 0, 0, workW, workH, 0, 0, w, h);
+      pctx.restore();
+
+      // Update dims (processed is always same canvas size as original; effective levels shown above)
+      procDim.textContent = `${w} × ${h}px (source @ ${workW}×${workH})`;
+    }
+
+    function resetUI() {
+      res.value = 100; bits.value = 8; modeColor.checked = true; modeGray.checked = false;
+      render();
+    }
+
+    // Event wiring
+    [res, bits, modeColor, modeGray].forEach(el => el.addEventListener('input', render));
+    resetBtn.addEventListener('click', resetUI);
+
+    downloadBtn.addEventListener('click', () => {
+      if (!procCanvas.width) return;
+      const a = document.createElement('a');
+      a.download = 'processed.png';
+      a.href = procCanvas.toDataURL('image/png');
+      a.click();
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => { originalImage.src = ev.target.result; };
+      reader.readAsDataURL(file);
+    });
+
+    // Built-in sample (royalty-free gradient demo image encoded as data URL)
+    loadSampleBtn.addEventListener('click', () => {
+      // A compact SVG data URL that renders a colorful photo-like gradient grid.
+      const svg = encodeURIComponent(`
+        <svg xmlns='http://www.w3.org/2000/svg' width='1200' height='800'>
+          <defs>
+            <linearGradient id='g1' x1='0' y1='0' x2='1' y2='1'>
+              <stop offset='0%' stop-color='#ff6b6b'/>
+              <stop offset='50%' stop-color='#ffd93d'/>
+              <stop offset='100%' stop-color='#6bcBff'/>
+            </linearGradient>
+            <linearGradient id='g2' x1='1' y1='0' x2='0' y2='1'>
+              <stop offset='0%' stop-color='#9b5de5'/>
+              <stop offset='50%' stop-color='#00f5d4'/>
+              <stop offset='100%' stop-color='#fee440'/>
+            </linearGradient>
+            <pattern id='p' width='200' height='200' patternUnits='userSpaceOnUse'>
+              <rect width='200' height='200' fill='url(#g1)'/>
+              <circle cx='100' cy='100' r='70' fill='url(#g2)' opacity='0.8'/>
+            </pattern>
+          </defs>
+          <rect width='1200' height='800' fill='url(#p)'/>
+        </svg>`);
+      originalImage.src = `data:image/svg+xml;charset=utf-8,${svg}`;
+    });
+
+    // Initialize with a tiny transparent base so canvases exist
+    (function initBlank() {
+      const blank = document.createElement('canvas');
+      blank.width = 640; blank.height = 400;
+      const ctx = blank.getContext('2d');
+      const grd = ctx.createLinearGradient(0,0,640,0);
+      grd.addColorStop(0,'#1a2a3a'); grd.addColorStop(1,'#0e1720');
+      ctx.fillStyle = grd; ctx.fillRect(0,0,640,400);
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      for(let y=20; y<400; y+=20){ for(let x=20; x<640; x+=20){ ctx.fillRect(x, y, 2, 2); } }
+      originalImage.src = blank.toDataURL('image/png');
+    })();
+  </script>
+</body>
+</html>
